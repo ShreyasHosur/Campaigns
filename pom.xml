@@ -20,6 +20,16 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
         <spring-cloud.version>Finchley.M8</spring-cloud.version>
+
+        <node.version>v11.0.0</node.version>
+        <npmVersion>6.1.0</npmVersion>
+        <frontend.deploy>build</frontend.deploy>
+        <client.directory>${basedir}/client</client.directory>
+<!--        <frontend.branch>master</frontend.branch>-->
+        <frontend.static.source>${basedir}/src/main/resources/static</frontend.static.source>
+        <frontend.static.target>${basedir}/target/classes/static</frontend.static.target>
+        <frontend.templates.source>${basedir}/src/main/resources/templates</frontend.templates.source>
+        <frontend.templates.target>${basedir}/target/classes/templates</frontend.templates.target>
     </properties>
 
     <dependencies>
@@ -55,6 +65,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-parameter-names</artifactId>
         </dependency>
@@ -72,5 +87,148 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+
+    <profiles>
+        <profile>
+            <id>Build Frontend</id>
+            <activation>
+                <property>
+                    <name>frontend.build</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution> <!-- Copy All files to static directory during generate resource stage-->
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <commandlineArgs>frontend-build.sh</commandlineArgs>
+                                </configuration>
+                                <phase>process-resources</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                <!--This section will copy the static assets (JS and CSS to target at build)-->
+                <execution>
+                    <id>copy-js-and-css-resources</id>
+                    <phase>compile</phase>
+                    <goals>
+                        <goal>copy-resources</goal>
+                    </goals>
+                    <configuration>
+                        <outputDirectory>${frontend.static.target}</outputDirectory>
+                        <resources>
+                            <resource>
+                                <directory>${frontend.static.source}</directory>
+                                <filtering>false</filtering>
+                            </resource>
+                        </resources>
+                    </configuration>
+                </execution>
+                    <execution>
+                        <!--This section will copy generated html templates-->
+                        <id>copy-templates</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${frontend.templates.target}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${frontend.templates.source}</directory>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+                </plugin>
+                    <plugin> <!-- Clean node modules and dist directory-->
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-clean-plugin</artifactId>
+                        <version>2.4.1</version>
+                        <executions>
+                            <execution>
+                                <id>auto-clean</id>
+                                <phase>clean</phase>
+                                <goals>
+                                    <goal>
+                                        clean
+                                    </goal>
+                                </goals>
+                                <configuration>
+                                    <filesets>
+                                        <fileset>
+                                            <directory>${client.directory}</directory>
+                                            <includes>
+                                                <include>node_modules/*</include>
+                                                <include>src/dist/*</include>
+                                            </includes>
+                                            <followSymlinks>true</followSymlinks>
+                                        </fileset>
+                                    </filesets>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin> <!-- Install Yarn and Node and Packages-->
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <version>1.6</version>
+                        <configuration>
+                            <nodeVersion>${node.version}</nodeVersion>
+                            <npmVersion>${npmVersion}</npmVersion>
+                            <installDirectory>${client.directory}</installDirectory>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>Install node and npm</id>
+                                <goals>
+                                    <goal>install-node-and-npm</goal>
+                                </goals>
+                                <phase>generate-resources</phase>
+                            </execution>
+                            <execution>
+                                <id>Install frontend packages</id>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <phase>generate-resources</phase>
+                                <configuration>
+                                    <arguments>install</arguments>
+                                    <workingDirectory>${client.directory}</workingDirectory>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>Build frontend resources</id>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>run ${frontend.deploy}</arguments>
+                                    <workingDirectory>${client.directory}</workingDirectory>
+                                </configuration>
+                                <phase>generate-resources</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
